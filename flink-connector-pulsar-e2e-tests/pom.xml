@@ -50,7 +50,7 @@ under the License.
 		<dependency>
 			<groupId>com.attentivemobile.fork.org.apache.flink</groupId>
 			<artifactId>flink-connector-pulsar</artifactId>
-			<version>3.0-SNAPSHOT</version>
+			<version>${project.version}</version>
 		</dependency>
 		<!-- pulsar-client-all requires jaxb-api for javax.xml.bind.annotation.XmlElement -->
 		<!-- packaged in flink-dist but not provided in e2e environment. -->
@@ -62,7 +62,7 @@ under the License.
 		<dependency>
 			<groupId>com.attentivemobile.fork.org.apache.flink</groupId>
 			<artifactId>flink-connector-pulsar</artifactId>
-			<version>3.0-SNAPSHOT</version>
+			<version>${project.version}</version>
 			<type>test-jar</type>
 		</dependency>
 		<dependency>
