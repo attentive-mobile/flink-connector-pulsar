@@ -155,6 +155,10 @@ public final class PulsarSchema<T> implements Serializable {
             oos.writeUTF(entry.getKey());
             oos.writeUTF(entry.getValue());
         }
+
+        // See: https://github.com/apache/flink-connector-pulsar/commit/4f204e8091fc870c0928b3834de691dc8b2c4dfb#diff-e02a63f6635c20e7a2404c7356904a9be5a65ed0328e67766db7d49799c37a33R159
+        // Timestamp
+        oos.writeLong(schemaInfo.getTimestamp());
     }
 
     private void readObject(ObjectInputStream ois) throws ClassNotFoundException, IOException {
@@ -177,7 +181,18 @@ public final class PulsarSchema<T> implements Serializable {
             properties.put(ois.readUTF(), ois.readUTF());
         }
 
-        this.schemaInfo = new SchemaInfoImpl(name, schemaBytes, type, properties);
+        // See: https://github.com/apache/flink-connector-pulsar/commit/4f204e8091fc870c0928b3834de691dc8b2c4dfb#diff-e02a63f6635c20e7a2404c7356904a9be5a65ed0328e67766db7d49799c37a33
+        // Timestamp
+        long timestamp = ois.readLong();
+
+        this.schemaInfo =
+            SchemaInfoImpl.builder()
+                .name(name)
+                .schema(schemaBytes)
+                .type(type)
+                .properties(properties)
+                .timestamp(timestamp)
+                .build();
         this.schema = createSchema(schemaInfo);
     }
 
