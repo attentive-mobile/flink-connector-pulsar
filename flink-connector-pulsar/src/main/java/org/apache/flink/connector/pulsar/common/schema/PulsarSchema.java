@@ -156,7 +156,6 @@ public final class PulsarSchema<T> implements Serializable {
             oos.writeUTF(entry.getValue());
         }
 
-        // See: https://github.com/apache/flink-connector-pulsar/commit/4f204e8091fc870c0928b3834de691dc8b2c4dfb
         // Timestamp
         oos.writeLong(schemaInfo.getTimestamp());
     }
@@ -181,7 +180,6 @@ public final class PulsarSchema<T> implements Serializable {
             properties.put(ois.readUTF(), ois.readUTF());
         }
 
-        // See: https://github.com/apache/flink-connector-pulsar/commit/4f204e8091fc870c0928b3834de691dc8b2c4dfb
         // Timestamp
         long timestamp = ois.readLong();
 
