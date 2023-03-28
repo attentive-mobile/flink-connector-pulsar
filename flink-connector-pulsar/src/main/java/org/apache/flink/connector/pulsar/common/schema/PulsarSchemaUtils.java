@@ -182,12 +182,12 @@ public final class PulsarSchemaUtils {
         properties.put(CLASS_INFO_PLACEHOLDER, typeClass.getName());
 
         return SchemaInfoImpl.builder()
-            .name(schemaInfo.getName())
-            .schema(schemaInfo.getSchema())
-            .type(schemaInfo.getType())
-            .properties(properties)
-            .timestamp(schemaInfo.getTimestamp())
-            .build();
+                .name(schemaInfo.getName())
+                .schema(schemaInfo.getSchema())
+                .type(schemaInfo.getType())
+                .properties(properties)
+                .timestamp(schemaInfo.getTimestamp())
+                .build();
     }
 
     @SuppressWarnings("unchecked")
