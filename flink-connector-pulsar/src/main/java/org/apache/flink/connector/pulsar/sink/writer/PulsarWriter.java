@@ -56,7 +56,6 @@ import static java.util.Collections.emptyList;
 import static org.apache.flink.util.IOUtils.closeAll;
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
-
 /**
  * This class is responsible to write records in a Pulsar topic and to handle the different delivery
  * {@link DeliveryGuarantee}s.
