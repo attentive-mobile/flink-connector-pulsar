@@ -35,6 +35,7 @@ public class PulsarMessageCollector<T> implements Collector<T> {
     private final String splitId;
     private final RecordsBySplits.Builder<PulsarMessage<T>> builder;
     private Message<?> message;
+    private T collectedValue;
 
     public PulsarMessageCollector(
             String splitId, RecordsBySplits.Builder<PulsarMessage<T>> builder) {
@@ -46,11 +47,16 @@ public class PulsarMessageCollector<T> implements Collector<T> {
         this.message = message;
     }
 
+    public T getCollectedValue() {
+        return collectedValue;
+    }
+
     @Override
     public void collect(T t) {
         PulsarMessage<T> result =
                 new PulsarMessage<>(message.getMessageId(), t, message.getEventTime());
         builder.add(splitId, result);
+        collectedValue = t;
     }
 
     @Override

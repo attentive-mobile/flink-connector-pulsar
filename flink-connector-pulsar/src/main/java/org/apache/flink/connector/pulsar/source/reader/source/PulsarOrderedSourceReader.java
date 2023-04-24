@@ -24,6 +24,7 @@ import org.apache.flink.api.connector.source.ReaderOutput;
 import org.apache.flink.api.connector.source.SourceReaderContext;
 import org.apache.flink.connector.base.source.reader.RecordsWithSplitIds;
 import org.apache.flink.connector.base.source.reader.synchronization.FutureCompletingBlockingQueue;
+import org.apache.flink.connector.pulsar.source.callback.SourceUserCallback;
 import org.apache.flink.connector.pulsar.source.config.SourceConfiguration;
 import org.apache.flink.connector.pulsar.source.enumerator.topic.TopicPartition;
 import org.apache.flink.connector.pulsar.source.reader.fetcher.PulsarOrderedFetcherManager;
@@ -72,14 +73,16 @@ public class PulsarOrderedSourceReader<OUT> extends PulsarSourceReaderBase<OUT> 
             SourceReaderContext context,
             SourceConfiguration sourceConfiguration,
             PulsarClient pulsarClient,
-            PulsarAdmin pulsarAdmin) {
+            PulsarAdmin pulsarAdmin,
+            SourceUserCallback<OUT> userCallback) {
         super(
                 elementsQueue,
                 new PulsarOrderedFetcherManager<>(elementsQueue, splitReaderSupplier::get),
                 context,
                 sourceConfiguration,
                 pulsarClient,
-                pulsarAdmin);
+                pulsarAdmin,
+                userCallback);
 
         this.cursorsToCommit = Collections.synchronizedSortedMap(new TreeMap<>());
         this.cursorsOfFinishedSplits = new ConcurrentHashMap<>();

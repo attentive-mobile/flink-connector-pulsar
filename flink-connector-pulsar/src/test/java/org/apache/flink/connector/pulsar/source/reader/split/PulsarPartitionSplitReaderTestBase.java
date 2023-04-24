@@ -23,9 +23,11 @@ import org.apache.flink.api.connector.source.Boundedness;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.connector.base.source.reader.RecordsWithSplitIds;
 import org.apache.flink.connector.base.source.reader.splitreader.SplitsAddition;
+import org.apache.flink.connector.pulsar.source.callback.SourceUserCallback;
 import org.apache.flink.connector.pulsar.source.config.SourceConfiguration;
 import org.apache.flink.connector.pulsar.source.enumerator.cursor.StopCursor;
 import org.apache.flink.connector.pulsar.source.enumerator.topic.TopicPartition;
+import org.apache.flink.connector.pulsar.source.reader.callback.MockSourceUserCallback;
 import org.apache.flink.connector.pulsar.source.reader.message.PulsarMessage;
 import org.apache.flink.connector.pulsar.source.split.PulsarPartitionSplit;
 import org.apache.flink.connector.pulsar.testutils.PulsarTestSuiteBase;
@@ -49,7 +51,7 @@ import org.junit.jupiter.api.extension.TestTemplateInvocationContextProvider;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -76,6 +78,7 @@ import static org.apache.flink.shaded.guava30.com.google.common.util.concurrent.
 import static org.apache.flink.util.Preconditions.checkNotNull;
 import static org.apache.pulsar.client.api.Schema.STRING;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /** Test utils for split readers. */
 @ExtendWith({
@@ -207,7 +210,9 @@ abstract class PulsarPartitionSplitReaderTestBase extends PulsarTestSuiteBase {
     }
 
     @TestTemplate
-    void pollMessageAfterTimeout(PulsarPartitionSplitReaderBase<String> splitReader)
+    void pollMessageAfterTimeout(
+            PulsarPartitionSplitReaderBase<String> splitReader,
+            MockSourceUserCallback<String> userCallback)
             throws InterruptedException, TimeoutException {
         String topicName = randomAlphabetic(10);
 
@@ -230,47 +235,58 @@ abstract class PulsarPartitionSplitReaderTestBase extends PulsarTestSuiteBase {
                 },
                 ofSeconds(Integer.MAX_VALUE),
                 "Couldn't poll message from Pulsar.");
+
+        assertEquals(1, userCallback.getProcessCalled());
     }
 
     @TestTemplate
     void consumeMessageCreatedAfterHandleSplitChangesAndFetch(
-            PulsarPartitionSplitReaderBase<String> splitReader) {
+            PulsarPartitionSplitReaderBase<String> splitReader,
+            MockSourceUserCallback<String> userCallback) {
         String topicName = randomAlphabetic(10);
         handleSplit(splitReader, topicName, 0, MessageId.latest);
         operator().sendMessage(topicNameWithPartition(topicName, 0), STRING, randomAlphabetic(10));
         fetchedMessages(splitReader, 1, true);
+        assertEquals(1, userCallback.getProcessCalled());
     }
 
     @TestTemplate
     void consumeMessageCreatedBeforeHandleSplitsChanges(
-            PulsarPartitionSplitReaderBase<String> splitReader) {
+            PulsarPartitionSplitReaderBase<String> splitReader,
+            MockSourceUserCallback<String> userCallback) {
         String topicName = randomAlphabetic(10);
         operator().setupTopic(topicName, STRING, () -> randomAlphabetic(10));
         seekStartPositionAndHandleSplit(splitReader, topicName, 0);
         fetchedMessages(splitReader, 0, true);
+        assertEquals(0, userCallback.getProcessCalled());
     }
 
     @TestTemplate
     void consumeMessageCreatedBeforeHandleSplitsChangesAndResetToEarliestPosition(
-            PulsarPartitionSplitReaderBase<String> splitReader) {
+            PulsarPartitionSplitReaderBase<String> splitReader,
+            MockSourceUserCallback<String> userCallback) {
         String topicName = randomAlphabetic(10);
         operator().setupTopic(topicName, STRING, () -> randomAlphabetic(10));
         seekStartPositionAndHandleSplit(splitReader, topicName, 0, MessageId.earliest);
         fetchedMessages(splitReader, NUM_RECORDS_PER_PARTITION, true);
+        assertEquals(NUM_RECORDS_PER_PARTITION, userCallback.getProcessCalled());
     }
 
     @TestTemplate
     void consumeMessageCreatedBeforeHandleSplitsChangesAndResetToLatestPosition(
-            PulsarPartitionSplitReaderBase<String> splitReader) {
+            PulsarPartitionSplitReaderBase<String> splitReader,
+            MockSourceUserCallback<String> userCallback) {
         String topicName = randomAlphabetic(10);
         operator().setupTopic(topicName, STRING, () -> randomAlphabetic(10));
         seekStartPositionAndHandleSplit(splitReader, topicName, 0, MessageId.latest);
         fetchedMessages(splitReader, 0, true);
+        assertEquals(0, userCallback.getProcessCalled());
     }
 
     @TestTemplate
     void consumeMessageCreatedBeforeHandleSplitsChangesAndUseSecondLastMessageIdCursor(
-            PulsarPartitionSplitReaderBase<String> splitReader) {
+            PulsarPartitionSplitReaderBase<String> splitReader,
+            MockSourceUserCallback<String> userCallback) {
 
         String topicName = randomAlphabetic(10);
         operator().setupTopic(topicName, STRING, () -> randomAlphabetic(10));
@@ -293,22 +309,29 @@ abstract class PulsarPartitionSplitReaderTestBase extends PulsarTestSuiteBase {
                         lastMessageId.getEntryId() - 1,
                         lastMessageId.getPartitionIndex()));
         fetchedMessages(splitReader, 2, true);
+        assertEquals(2, userCallback.getProcessCalled());
     }
 
     @TestTemplate
-    void emptyTopic(PulsarPartitionSplitReaderBase<String> splitReader) {
+    void emptyTopic(
+            PulsarPartitionSplitReaderBase<String> splitReader,
+            MockSourceUserCallback<String> userCallback) {
         String topicName = randomAlphabetic(10);
         operator().createTopic(topicName, DEFAULT_PARTITIONS);
         seekStartPositionAndHandleSplit(splitReader, topicName, 0);
         fetchedMessages(splitReader, 0, true);
+        assertEquals(0, userCallback.getProcessCalled());
     }
 
     @TestTemplate
-    void emptyTopicWithoutSeek(PulsarPartitionSplitReaderBase<String> splitReader) {
+    void emptyTopicWithoutSeek(
+            PulsarPartitionSplitReaderBase<String> splitReader,
+            MockSourceUserCallback<String> userCallback) {
         String topicName = randomAlphabetic(10);
         operator().createTopic(topicName, DEFAULT_PARTITIONS);
         handleSplit(splitReader, topicName, 0);
         fetchedMessages(splitReader, 0, true);
+        assertEquals(0, userCallback.getProcessCalled());
     }
 
     @TestTemplate
@@ -341,20 +364,23 @@ abstract class PulsarPartitionSplitReaderTestBase extends PulsarTestSuiteBase {
     }
 
     /** Create a split reader with max message 1, fetch timeout 1s. */
-    private PulsarPartitionSplitReaderBase<String> splitReader(SubscriptionType subscriptionType) {
+    private PulsarPartitionSplitReaderBase<String> splitReader(
+            SubscriptionType subscriptionType, MockSourceUserCallback<String> userCallback) {
         if (subscriptionType == SubscriptionType.Failover) {
             return new PulsarOrderedPartitionSplitReader<>(
                     operator().client(),
                     operator().admin(),
                     sourceConfig(),
-                    flinkSchema(new SimpleStringSchema()));
+                    flinkSchema(new SimpleStringSchema()),
+                    userCallback);
         } else {
             return new PulsarUnorderedPartitionSplitReader<>(
                     operator().client(),
                     operator().admin(),
                     sourceConfig(),
                     flinkSchema(new SimpleStringSchema()),
-                    null);
+                    null,
+                    userCallback);
         }
     }
 
@@ -374,7 +400,10 @@ abstract class PulsarPartitionSplitReaderTestBase extends PulsarTestSuiteBase {
                     (SubscriptionType)
                             context.getStore(PULSAR_TEST_RESOURCE_NAMESPACE)
                                     .get(PULSAR_SOURCE_READER_SUBSCRIPTION_TYPE_STORE_KEY);
-            return Stream.of(new PulsarSplitReaderInvocationContext(splitReader(subscriptionType)));
+            MockSourceUserCallback<String> userCallback = new MockSourceUserCallback<>();
+            return Stream.of(
+                    new PulsarSplitReaderInvocationContext(
+                            splitReader(subscriptionType, userCallback), userCallback));
         }
     }
 
@@ -383,9 +412,13 @@ abstract class PulsarPartitionSplitReaderTestBase extends PulsarTestSuiteBase {
             implements TestTemplateInvocationContext {
 
         private final PulsarPartitionSplitReaderBase<?> splitReader;
+        private final MockSourceUserCallback<?> userCallback;
 
-        public PulsarSplitReaderInvocationContext(PulsarPartitionSplitReaderBase<?> splitReader) {
+        public PulsarSplitReaderInvocationContext(
+                PulsarPartitionSplitReaderBase<?> splitReader,
+                MockSourceUserCallback<?> userCallback) {
             this.splitReader = checkNotNull(splitReader);
+            this.userCallback = userCallback;
         }
 
         @Override
@@ -395,7 +428,7 @@ abstract class PulsarPartitionSplitReaderTestBase extends PulsarTestSuiteBase {
 
         @Override
         public List<Extension> getAdditionalExtensions() {
-            return Collections.singletonList(
+            return Arrays.asList(
                     new ParameterResolver() {
                         @Override
                         public boolean supportsParameter(
@@ -412,6 +445,24 @@ abstract class PulsarPartitionSplitReaderTestBase extends PulsarTestSuiteBase {
                                 ExtensionContext extensionContext)
                                 throws ParameterResolutionException {
                             return splitReader;
+                        }
+                    },
+                    new ParameterResolver() {
+                        @Override
+                        public boolean supportsParameter(
+                                ParameterContext parameterContext,
+                                ExtensionContext extensionContext)
+                                throws ParameterResolutionException {
+                            return isAssignableFromParameterContext(
+                                    SourceUserCallback.class, parameterContext);
+                        }
+
+                        @Override
+                        public Object resolveParameter(
+                                ParameterContext parameterContext,
+                                ExtensionContext extensionContext)
+                                throws ParameterResolutionException {
+                            return userCallback;
                         }
                     });
         }

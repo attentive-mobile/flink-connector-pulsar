@@ -19,6 +19,7 @@
 package org.apache.flink.connector.pulsar.source.reader.split;
 
 import org.apache.flink.annotation.Internal;
+import org.apache.flink.connector.pulsar.source.callback.SourceUserCallback;
 import org.apache.flink.connector.pulsar.source.config.SourceConfiguration;
 import org.apache.flink.connector.pulsar.source.reader.deserializer.PulsarDeserializationSchema;
 import org.apache.flink.connector.pulsar.source.reader.source.PulsarUnorderedSourceReader;
@@ -67,8 +68,9 @@ public class PulsarUnorderedPartitionSplitReader<OUT> extends PulsarPartitionSpl
             PulsarAdmin pulsarAdmin,
             SourceConfiguration sourceConfiguration,
             PulsarDeserializationSchema<OUT> deserializationSchema,
-            TransactionCoordinatorClient coordinatorClient) {
-        super(pulsarClient, pulsarAdmin, sourceConfiguration, deserializationSchema);
+            TransactionCoordinatorClient coordinatorClient,
+            SourceUserCallback<OUT> userCallback) {
+        super(pulsarClient, pulsarAdmin, sourceConfiguration, deserializationSchema, userCallback);
 
         this.coordinatorClient = coordinatorClient;
     }

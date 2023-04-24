@@ -23,6 +23,8 @@ import org.apache.flink.api.connector.source.SourceReader;
 import org.apache.flink.api.connector.source.SourceReaderContext;
 import org.apache.flink.connector.base.source.reader.RecordsWithSplitIds;
 import org.apache.flink.connector.base.source.reader.synchronization.FutureCompletingBlockingQueue;
+import org.apache.flink.connector.pulsar.source.callback.SourceUserCallback;
+import org.apache.flink.connector.pulsar.source.callback.SourceUserCallbackFactory;
 import org.apache.flink.connector.pulsar.source.config.SourceConfiguration;
 import org.apache.flink.connector.pulsar.source.reader.deserializer.PulsarDeserializationSchema;
 import org.apache.flink.connector.pulsar.source.reader.message.PulsarMessage;
@@ -38,6 +40,9 @@ import org.apache.pulsar.client.api.SubscriptionType;
 import org.apache.pulsar.client.api.transaction.TransactionCoordinatorClient;
 import org.apache.pulsar.client.impl.PulsarClientImpl;
 
+import javax.annotation.Nullable;
+
+import java.util.Optional;
 import java.util.function.Supplier;
 
 import static org.apache.flink.connector.pulsar.common.config.PulsarClientFactory.createAdmin;
@@ -63,7 +68,13 @@ public final class PulsarSourceReaderFactory {
     public static <OUT> SourceReader<OUT, PulsarPartitionSplit> create(
             SourceReaderContext readerContext,
             PulsarDeserializationSchema<OUT> deserializationSchema,
-            SourceConfiguration sourceConfiguration) {
+            SourceConfiguration sourceConfiguration,
+            @Nullable SourceUserCallbackFactory<OUT> userCallbackFactory) {
+
+        SourceUserCallback<OUT> userCallback =
+                Optional.ofNullable(userCallbackFactory)
+                        .map(SourceUserCallbackFactory::create)
+                        .orElse(null);
 
         PulsarClient pulsarClient = createClient(sourceConfiguration);
         PulsarAdmin pulsarAdmin = createAdmin(sourceConfiguration);
@@ -84,7 +95,8 @@ public final class PulsarSourceReaderFactory {
                                     pulsarClient,
                                     pulsarAdmin,
                                     sourceConfiguration,
-                                    deserializationSchema);
+                                    deserializationSchema,
+                                    userCallback);
 
             return new PulsarOrderedSourceReader<>(
                     elementsQueue,
@@ -92,7 +104,8 @@ public final class PulsarSourceReaderFactory {
                     readerContext,
                     sourceConfiguration,
                     pulsarClient,
-                    pulsarAdmin);
+                    pulsarAdmin,
+                    userCallback);
         } else if (subscriptionType == SubscriptionType.Shared
                 || subscriptionType == SubscriptionType.Key_Shared) {
             TransactionCoordinatorClient coordinatorClient =
@@ -109,7 +122,8 @@ public final class PulsarSourceReaderFactory {
                                     pulsarAdmin,
                                     sourceConfiguration,
                                     deserializationSchema,
-                                    coordinatorClient);
+                                    coordinatorClient,
+                                    userCallback);
 
             return new PulsarUnorderedSourceReader<>(
                     elementsQueue,
@@ -118,7 +132,8 @@ public final class PulsarSourceReaderFactory {
                     sourceConfiguration,
                     pulsarClient,
                     pulsarAdmin,
-                    coordinatorClient);
+                    coordinatorClient,
+                    userCallback);
         } else {
             throw new UnsupportedOperationException(
                     "This subscription type is not " + subscriptionType + " supported currently.");

@@ -19,6 +19,7 @@
 package org.apache.flink.connector.pulsar.source.reader.split;
 
 import org.apache.flink.annotation.Internal;
+import org.apache.flink.connector.pulsar.source.callback.SourceUserCallback;
 import org.apache.flink.connector.pulsar.source.config.SourceConfiguration;
 import org.apache.flink.connector.pulsar.source.enumerator.cursor.CursorPosition;
 import org.apache.flink.connector.pulsar.source.enumerator.topic.TopicPartition;
@@ -34,6 +35,8 @@ import org.apache.pulsar.client.api.PulsarClient;
 import org.apache.pulsar.client.api.PulsarClientException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import javax.annotation.Nullable;
 
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
@@ -56,8 +59,9 @@ public class PulsarOrderedPartitionSplitReader<OUT> extends PulsarPartitionSplit
             PulsarClient pulsarClient,
             PulsarAdmin pulsarAdmin,
             SourceConfiguration sourceConfiguration,
-            PulsarDeserializationSchema<OUT> deserializationSchema) {
-        super(pulsarClient, pulsarAdmin, sourceConfiguration, deserializationSchema);
+            PulsarDeserializationSchema<OUT> deserializationSchema,
+            @Nullable SourceUserCallback<OUT> userCallback) {
+        super(pulsarClient, pulsarAdmin, sourceConfiguration, deserializationSchema, userCallback);
     }
 
     @Override

@@ -24,6 +24,8 @@ import org.apache.flink.configuration.Configuration;
 import org.apache.flink.connector.base.DeliveryGuarantee;
 import org.apache.flink.connector.pulsar.common.config.PulsarConfigBuilder;
 import org.apache.flink.connector.pulsar.common.config.PulsarOptions;
+import org.apache.flink.connector.pulsar.sink.callback.SinkUserCallback;
+import org.apache.flink.connector.pulsar.sink.callback.SinkUserCallbackFactory;
 import org.apache.flink.connector.pulsar.sink.config.SinkConfiguration;
 import org.apache.flink.connector.pulsar.sink.writer.delayer.MessageDelayer;
 import org.apache.flink.connector.pulsar.sink.writer.router.TopicRouter;
@@ -103,6 +105,7 @@ public class PulsarSinkBuilder<IN> {
     private TopicRoutingMode topicRoutingMode;
     private TopicRouter<IN> topicRouter;
     private MessageDelayer<IN> messageDelayer;
+    private SinkUserCallbackFactory<IN> userCallbackFactory;
 
     // private builder constructor.
     PulsarSinkBuilder() {
@@ -285,6 +288,18 @@ public class PulsarSinkBuilder<IN> {
     }
 
     /**
+     * Set a factory for the {@link SinkUserCallback}.
+     *
+     * @param userCallbackFactory the factory.
+     * @return this PuslarSourceBuilder
+     */
+    public PulsarSinkBuilder<IN> setUserCallbackFactory(
+            SinkUserCallbackFactory<IN> userCallbackFactory) {
+        this.userCallbackFactory = userCallbackFactory;
+        return this;
+    }
+
+    /**
      * Build the {@link PulsarSink}.
      *
      * @return a PulsarSink with the settings made for this builder.
@@ -364,7 +379,8 @@ public class PulsarSinkBuilder<IN> {
                 metadataListener,
                 topicRoutingMode,
                 topicRouter,
-                messageDelayer);
+                messageDelayer,
+                userCallbackFactory);
     }
 
     // ------------- private helpers  --------------

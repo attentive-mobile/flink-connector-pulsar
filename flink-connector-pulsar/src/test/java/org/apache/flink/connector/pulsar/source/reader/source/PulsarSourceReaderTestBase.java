@@ -21,9 +21,12 @@ package org.apache.flink.connector.pulsar.source.reader.source;
 import org.apache.flink.api.connector.source.Boundedness;
 import org.apache.flink.api.connector.source.SourceReaderContext;
 import org.apache.flink.configuration.Configuration;
+import org.apache.flink.connector.pulsar.source.callback.SourceUserCallback;
+import org.apache.flink.connector.pulsar.source.callback.SourceUserCallbackFactory;
 import org.apache.flink.connector.pulsar.source.config.SourceConfiguration;
 import org.apache.flink.connector.pulsar.source.enumerator.topic.TopicNameUtils;
 import org.apache.flink.connector.pulsar.source.reader.PulsarSourceReaderFactory;
+import org.apache.flink.connector.pulsar.source.reader.callback.MockSourceUserCallback;
 import org.apache.flink.connector.pulsar.source.reader.deserializer.PulsarDeserializationSchema;
 import org.apache.flink.connector.pulsar.source.reader.deserializer.PulsarDeserializationSchemaInitializationContext;
 import org.apache.flink.connector.pulsar.source.split.PulsarPartitionSplit;
@@ -93,12 +96,16 @@ abstract class PulsarSourceReaderTestBase extends PulsarTestSuiteBase {
 
     @TestTemplate
     void assignZeroSplitsCreatesZeroSubscription(
-            PulsarSourceReaderBase<Integer> reader, Boundedness boundedness, String topicName)
+            PulsarSourceReaderBase<Integer> reader,
+            Boundedness boundedness,
+            String topicName,
+            MockSourceUserCallback<Integer> userCallback)
             throws Exception {
         reader.snapshotState(100L);
         reader.notifyCheckpointComplete(100L);
         // Verify the committed offsets.
         reader.close();
+        assertThat(userCallback.getCloseCalled()).isGreaterThan(0);
         for (int i = 0; i < PulsarRuntimeOperator.DEFAULT_PARTITIONS; i++) {
             verifyNoSubscriptionCreated(TopicNameUtils.topicNameWithPartition(topicName, i));
         }
@@ -106,7 +113,10 @@ abstract class PulsarSourceReaderTestBase extends PulsarTestSuiteBase {
 
     @TestTemplate
     void assigningEmptySplits(
-            PulsarSourceReaderBase<Integer> reader, Boundedness boundedness, String topicName)
+            PulsarSourceReaderBase<Integer> reader,
+            Boundedness boundedness,
+            String topicName,
+            MockSourceUserCallback<Integer> userCallback)
             throws Exception {
         final PulsarPartitionSplit emptySplit =
                 createPartitionSplit(
@@ -118,6 +128,7 @@ abstract class PulsarSourceReaderTestBase extends PulsarTestSuiteBase {
         InputStatus status = reader.pollNext(output);
         assertThat(status).isEqualTo(InputStatus.NOTHING_AVAILABLE);
         reader.close();
+        assertThat(userCallback.getCloseCalled()).isGreaterThan(0);
     }
 
     private void verifyNoSubscriptionCreated(String partitionName) throws PulsarAdminException {
@@ -127,7 +138,9 @@ abstract class PulsarSourceReaderTestBase extends PulsarTestSuiteBase {
     }
 
     private PulsarSourceReaderBase<Integer> sourceReader(
-            boolean autoAcknowledgementEnabled, SubscriptionType subscriptionType) {
+            boolean autoAcknowledgementEnabled,
+            SubscriptionType subscriptionType,
+            SourceUserCallback<Integer> userCallback) {
         Configuration configuration = operator().config();
         configuration.set(PULSAR_MAX_FETCH_RECORDS, 1);
         configuration.set(PULSAR_MAX_FETCH_TIME, 1000L);
@@ -150,7 +163,25 @@ abstract class PulsarSourceReaderTestBase extends PulsarTestSuiteBase {
         SourceConfiguration sourceConfiguration = new SourceConfiguration(configuration);
         return (PulsarSourceReaderBase<Integer>)
                 PulsarSourceReaderFactory.create(
-                        context, deserializationSchema, sourceConfiguration);
+                        context,
+                        deserializationSchema,
+                        sourceConfiguration,
+                        new UserCallbackFactory<>(userCallback));
+    }
+
+    private static class UserCallbackFactory<T> implements SourceUserCallbackFactory<T> {
+
+        private final SourceUserCallback<T> callback;
+
+        public UserCallbackFactory(SourceUserCallback<T> callback) {
+
+            this.callback = callback;
+        }
+
+        @Override
+        public SourceUserCallback<T> create() {
+            return this.callback;
+        }
     }
 
     public class PulsarSourceReaderInvocationContextProvider
@@ -168,12 +199,16 @@ abstract class PulsarSourceReaderTestBase extends PulsarTestSuiteBase {
                     (SubscriptionType)
                             context.getStore(PULSAR_TEST_RESOURCE_NAMESPACE)
                                     .get(PULSAR_SOURCE_READER_SUBSCRIPTION_TYPE_STORE_KEY);
+            MockSourceUserCallback<Integer> userCallback = new MockSourceUserCallback<>();
             return Stream.of(
                     new PulsarSourceReaderInvocationContext(
-                            sourceReader(true, subscriptionType), Boundedness.CONTINUOUS_UNBOUNDED),
+                            sourceReader(true, subscriptionType, userCallback),
+                            Boundedness.CONTINUOUS_UNBOUNDED,
+                            userCallback),
                     new PulsarSourceReaderInvocationContext(
-                            sourceReader(false, subscriptionType),
-                            Boundedness.CONTINUOUS_UNBOUNDED));
+                            sourceReader(false, subscriptionType, userCallback),
+                            Boundedness.CONTINUOUS_UNBOUNDED,
+                            userCallback));
         }
     }
 
@@ -181,14 +216,18 @@ abstract class PulsarSourceReaderTestBase extends PulsarTestSuiteBase {
             implements TestTemplateInvocationContext {
 
         private final PulsarSourceReaderBase<?> sourceReader;
+        private final MockSourceUserCallback<?> userCallback;
         private final Boundedness boundedness;
         private final String randomTopicName;
 
         public PulsarSourceReaderInvocationContext(
-                PulsarSourceReaderBase<?> splitReader, Boundedness boundedness) {
+                PulsarSourceReaderBase<?> splitReader,
+                Boundedness boundedness,
+                MockSourceUserCallback<?> userCallback) {
             this.sourceReader = checkNotNull(splitReader);
             this.boundedness = checkNotNull(boundedness);
             this.randomTopicName = randomAlphabetic(5);
+            this.userCallback = userCallback;
         }
 
         @Override
@@ -213,7 +252,9 @@ abstract class PulsarSourceReaderTestBase extends PulsarTestSuiteBase {
                                     || isAssignableFromParameterContext(
                                             Boundedness.class, parameterContext)
                                     || isAssignableFromParameterContext(
-                                            String.class, parameterContext);
+                                            String.class, parameterContext)
+                                    || isAssignableFromParameterContext(
+                                            SourceUserCallback.class, parameterContext);
                         }
 
                         @Override
@@ -231,6 +272,11 @@ abstract class PulsarSourceReaderTestBase extends PulsarTestSuiteBase {
                                     .getType()
                                     .equals(Boundedness.class)) {
                                 return boundedness;
+                            } else if (parameterContext
+                                    .getParameter()
+                                    .getType()
+                                    .equals(MockSourceUserCallback.class)) {
+                                return userCallback;
                             } else {
                                 return randomTopicName;
                             }

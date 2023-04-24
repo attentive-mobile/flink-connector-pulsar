@@ -22,6 +22,7 @@ import org.apache.flink.api.connector.source.SourceReaderContext;
 import org.apache.flink.connector.base.source.reader.RecordsWithSplitIds;
 import org.apache.flink.connector.base.source.reader.SourceReaderBase;
 import org.apache.flink.connector.base.source.reader.synchronization.FutureCompletingBlockingQueue;
+import org.apache.flink.connector.pulsar.source.callback.SourceUserCallback;
 import org.apache.flink.connector.pulsar.source.config.SourceConfiguration;
 import org.apache.flink.connector.pulsar.source.reader.emitter.PulsarRecordEmitter;
 import org.apache.flink.connector.pulsar.source.reader.fetcher.PulsarFetcherManagerBase;
@@ -44,6 +45,7 @@ abstract class PulsarSourceReaderBase<OUT>
     protected final SourceConfiguration sourceConfiguration;
     protected final PulsarClient pulsarClient;
     protected final PulsarAdmin pulsarAdmin;
+    private final SourceUserCallback userCallback;
 
     protected PulsarSourceReaderBase(
             FutureCompletingBlockingQueue<RecordsWithSplitIds<PulsarMessage<OUT>>> elementsQueue,
@@ -51,7 +53,8 @@ abstract class PulsarSourceReaderBase<OUT>
             SourceReaderContext context,
             SourceConfiguration sourceConfiguration,
             PulsarClient pulsarClient,
-            PulsarAdmin pulsarAdmin) {
+            PulsarAdmin pulsarAdmin,
+            SourceUserCallback userCallback) {
         super(
                 elementsQueue,
                 splitFetcherManager,
@@ -62,6 +65,7 @@ abstract class PulsarSourceReaderBase<OUT>
         this.sourceConfiguration = sourceConfiguration;
         this.pulsarClient = pulsarClient;
         this.pulsarAdmin = pulsarAdmin;
+        this.userCallback = userCallback;
     }
 
     @Override
@@ -81,7 +85,13 @@ abstract class PulsarSourceReaderBase<OUT>
         super.close();
 
         // Close shared pulsar resources.
-        pulsarClient.shutdown();
-        pulsarAdmin.close();
+        try {
+            pulsarClient.shutdown();
+            pulsarAdmin.close();
+        } finally {
+            if (userCallback != null) {
+                userCallback.close();
+            }
+        }
     }
 }

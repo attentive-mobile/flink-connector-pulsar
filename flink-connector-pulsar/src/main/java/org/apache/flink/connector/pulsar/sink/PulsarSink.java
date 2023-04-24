@@ -23,6 +23,8 @@ import org.apache.flink.annotation.PublicEvolving;
 import org.apache.flink.api.connector.sink2.Committer;
 import org.apache.flink.api.connector.sink2.TwoPhaseCommittingSink;
 import org.apache.flink.connector.base.DeliveryGuarantee;
+import org.apache.flink.connector.pulsar.sink.callback.SinkUserCallback;
+import org.apache.flink.connector.pulsar.sink.callback.SinkUserCallbackFactory;
 import org.apache.flink.connector.pulsar.sink.committer.PulsarCommittable;
 import org.apache.flink.connector.pulsar.sink.committer.PulsarCommittableSerializer;
 import org.apache.flink.connector.pulsar.sink.committer.PulsarCommitter;
@@ -36,6 +38,8 @@ import org.apache.flink.connector.pulsar.sink.writer.router.TopicRoutingMode;
 import org.apache.flink.connector.pulsar.sink.writer.serializer.PulsarSerializationSchema;
 import org.apache.flink.connector.pulsar.sink.writer.topic.TopicMetadataListener;
 import org.apache.flink.core.io.SimpleVersionedSerializer;
+
+import javax.annotation.Nullable;
 
 import static org.apache.flink.util.Preconditions.checkNotNull;
 
@@ -85,6 +89,7 @@ public class PulsarSink<IN> implements TwoPhaseCommittingSink<IN, PulsarCommitta
     private final TopicMetadataListener metadataListener;
     private final MessageDelayer<IN> messageDelayer;
     private final TopicRouter<IN> topicRouter;
+    private final SinkUserCallbackFactory<IN> sinkUserCallbackFactory;
 
     PulsarSink(
             SinkConfiguration sinkConfiguration,
@@ -92,7 +97,8 @@ public class PulsarSink<IN> implements TwoPhaseCommittingSink<IN, PulsarCommitta
             TopicMetadataListener metadataListener,
             TopicRoutingMode topicRoutingMode,
             TopicRouter<IN> topicRouter,
-            MessageDelayer<IN> messageDelayer) {
+            MessageDelayer<IN> messageDelayer,
+            @Nullable SinkUserCallbackFactory<IN> sinkUserCallbackFactory) {
         this.sinkConfiguration = checkNotNull(sinkConfiguration);
         this.serializationSchema = checkNotNull(serializationSchema);
         this.metadataListener = checkNotNull(metadataListener);
@@ -107,6 +113,7 @@ public class PulsarSink<IN> implements TwoPhaseCommittingSink<IN, PulsarCommitta
         } else {
             this.topicRouter = new KeyHashTopicRouter<>(sinkConfiguration);
         }
+        this.sinkUserCallbackFactory = sinkUserCallbackFactory;
     }
 
     /**
@@ -122,13 +129,18 @@ public class PulsarSink<IN> implements TwoPhaseCommittingSink<IN, PulsarCommitta
     @Internal
     @Override
     public PrecommittingSinkWriter<IN, PulsarCommittable> createWriter(InitContext initContext) {
+        SinkUserCallback<IN> userCallback = null;
+        if (sinkUserCallbackFactory != null) {
+            userCallback = sinkUserCallbackFactory.create();
+        }
         return new PulsarWriter<>(
                 sinkConfiguration,
                 serializationSchema,
                 metadataListener,
                 topicRouter,
                 messageDelayer,
-                initContext);
+                initContext,
+                userCallback);
     }
 
     @Internal

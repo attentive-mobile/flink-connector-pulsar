@@ -28,6 +28,7 @@ import org.apache.flink.api.connector.source.SourceReaderContext;
 import org.apache.flink.api.connector.source.SplitEnumerator;
 import org.apache.flink.api.connector.source.SplitEnumeratorContext;
 import org.apache.flink.api.java.typeutils.ResultTypeQueryable;
+import org.apache.flink.connector.pulsar.source.callback.SourceUserCallbackFactory;
 import org.apache.flink.connector.pulsar.source.config.SourceConfiguration;
 import org.apache.flink.connector.pulsar.source.enumerator.PulsarSourceEnumState;
 import org.apache.flink.connector.pulsar.source.enumerator.PulsarSourceEnumStateSerializer;
@@ -42,6 +43,8 @@ import org.apache.flink.connector.pulsar.source.reader.deserializer.PulsarDeseri
 import org.apache.flink.connector.pulsar.source.split.PulsarPartitionSplit;
 import org.apache.flink.connector.pulsar.source.split.PulsarPartitionSplitSerializer;
 import org.apache.flink.core.io.SimpleVersionedSerializer;
+
+import javax.annotation.Nullable;
 
 /**
  * The Source implementation of Pulsar. Please use a {@link PulsarSourceBuilder} to construct a
@@ -89,6 +92,8 @@ public final class PulsarSource<OUT>
     /** The pulsar deserialization schema used for deserializing message. */
     private final PulsarDeserializationSchema<OUT> deserializationSchema;
 
+    private final SourceUserCallbackFactory<OUT> userCallbackFactory;
+
     /**
      * The constructor for PulsarSource, it's package protected for forcing using {@link
      * PulsarSourceBuilder}.
@@ -100,7 +105,8 @@ public final class PulsarSource<OUT>
             StartCursor startCursor,
             StopCursor stopCursor,
             Boundedness boundedness,
-            PulsarDeserializationSchema<OUT> deserializationSchema) {
+            PulsarDeserializationSchema<OUT> deserializationSchema,
+            @Nullable SourceUserCallbackFactory<OUT> userCallbackFactory) {
         this.sourceConfiguration = sourceConfiguration;
         this.subscriber = subscriber;
         this.rangeGenerator = rangeGenerator;
@@ -108,6 +114,7 @@ public final class PulsarSource<OUT>
         this.stopCursor = stopCursor;
         this.boundedness = boundedness;
         this.deserializationSchema = deserializationSchema;
+        this.userCallbackFactory = userCallbackFactory;
     }
 
     /**
@@ -134,7 +141,7 @@ public final class PulsarSource<OUT>
         deserializationSchema.open(initializationContext, sourceConfiguration);
 
         return PulsarSourceReaderFactory.create(
-                readerContext, deserializationSchema, sourceConfiguration);
+                readerContext, deserializationSchema, sourceConfiguration, userCallbackFactory);
     }
 
     @Internal

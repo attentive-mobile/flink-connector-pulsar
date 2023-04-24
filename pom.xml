@@ -27,7 +27,7 @@ under the License.
 
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>org.apache.flink</groupId>
+    <groupId>com.attentivemobile.fork.org.apache.flink</groupId>
     <artifactId>flink-connector-pulsar-parent</artifactId>
     <version>3.0-SNAPSHOT</version>
     <name>Flink : Connectors : Pulsar : Parent</name>
@@ -50,7 +50,7 @@ under the License.
 
     <properties>
         <flink.version>1.16.0</flink.version>
-        <pulsar.version>2.10.1</pulsar.version>
+        <pulsar.version>2.10.3</pulsar.version>
 
         <jackson-bom.version>2.13.4.20221013</jackson-bom.version>
         <grpc-bom.version>1.45.1</grpc-bom.version>
@@ -684,8 +684,27 @@ under the License.
             </plugin>
 
             <plugin>
+                <!-- Sets a 'rootDir' system property that points to the root of the project.
+                     Child projects who want to use it must set the ${flink.parent.artifactId} property -->
                 <groupId>org.commonjava.maven.plugins</groupId>
                 <artifactId>directory-maven-plugin</artifactId>
+                <version>0.1</version>
+                <executions>
+                    <execution>
+                        <id>directories</id>
+                        <goals>
+                            <goal>directory-of</goal>
+                        </goals>
+                        <phase>initialize</phase>
+                        <configuration>
+                            <property>rootDir</property>
+                            <project>
+                                <groupId>com.attentivemobile.fork.org.apache.flink</groupId>
+                                <artifactId>${flink.parent.artifactId}</artifactId>
+                            </project>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>

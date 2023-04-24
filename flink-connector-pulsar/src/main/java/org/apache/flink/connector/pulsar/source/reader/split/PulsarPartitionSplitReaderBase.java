@@ -24,6 +24,7 @@ import org.apache.flink.connector.base.source.reader.RecordsWithSplitIds;
 import org.apache.flink.connector.base.source.reader.splitreader.SplitReader;
 import org.apache.flink.connector.base.source.reader.splitreader.SplitsAddition;
 import org.apache.flink.connector.base.source.reader.splitreader.SplitsChange;
+import org.apache.flink.connector.pulsar.source.callback.SourceUserCallback;
 import org.apache.flink.connector.pulsar.source.config.SourceConfiguration;
 import org.apache.flink.connector.pulsar.source.enumerator.cursor.StopCursor;
 import org.apache.flink.connector.pulsar.source.enumerator.cursor.StopCursor.StopCondition;
@@ -72,6 +73,7 @@ abstract class PulsarPartitionSplitReaderBase<OUT>
     protected final PulsarAdmin pulsarAdmin;
     protected final SourceConfiguration sourceConfiguration;
     protected final PulsarDeserializationSchema<OUT> deserializationSchema;
+    private final SourceUserCallback<OUT> userCallback;
 
     protected Consumer<byte[]> pulsarConsumer;
     protected PulsarPartitionSplit registeredSplit;
@@ -80,11 +82,13 @@ abstract class PulsarPartitionSplitReaderBase<OUT>
             PulsarClient pulsarClient,
             PulsarAdmin pulsarAdmin,
             SourceConfiguration sourceConfiguration,
-            PulsarDeserializationSchema<OUT> deserializationSchema) {
+            PulsarDeserializationSchema<OUT> deserializationSchema,
+            @Nullable SourceUserCallback<OUT> userCallback) {
         this.pulsarClient = pulsarClient;
         this.pulsarAdmin = pulsarAdmin;
         this.sourceConfiguration = sourceConfiguration;
         this.deserializationSchema = deserializationSchema;
+        this.userCallback = userCallback;
     }
 
     @Override
@@ -118,6 +122,12 @@ abstract class PulsarPartitionSplitReaderBase<OUT>
                     // Deserialize message.
                     collector.setMessage(message);
                     deserializationSchema.deserialize(message, collector);
+
+                    // invoke user callback
+                    if (userCallback != null) {
+                        callSafely(
+                                () -> userCallback.process(message, collector.getCollectedValue()));
+                    }
 
                     // Acknowledge message if need.
                     finishedPollMessage(message);
@@ -236,5 +246,13 @@ abstract class PulsarPartitionSplitReaderBase<OUT>
 
         // Create the consumer configuration by using common utils.
         return sneakyClient(consumerBuilder::subscribe);
+    }
+
+    private void callSafely(Runnable r) {
+        try {
+            r.run();
+        } catch (Throwable t) {
+            LOG.warn("Exception from user callback", t);
+        }
     }
 }

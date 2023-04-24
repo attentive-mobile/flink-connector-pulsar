@@ -25,10 +25,12 @@ import org.apache.flink.api.connector.sink2.Sink.InitContext;
 import org.apache.flink.api.connector.sink2.SinkWriter;
 import org.apache.flink.configuration.Configuration;
 import org.apache.flink.connector.base.DeliveryGuarantee;
+import org.apache.flink.connector.pulsar.sink.callback.SinkUserCallback;
 import org.apache.flink.connector.pulsar.sink.committer.PulsarCommittable;
 import org.apache.flink.connector.pulsar.sink.config.SinkConfiguration;
 import org.apache.flink.connector.pulsar.sink.writer.delayer.FixedMessageDelayer;
 import org.apache.flink.connector.pulsar.sink.writer.delayer.MessageDelayer;
+import org.apache.flink.connector.pulsar.sink.writer.message.PulsarMessage;
 import org.apache.flink.connector.pulsar.sink.writer.router.RoundRobinTopicRouter;
 import org.apache.flink.connector.pulsar.sink.writer.serializer.PulsarSerializationSchema;
 import org.apache.flink.connector.pulsar.sink.writer.topic.TopicMetadataListener;
@@ -43,6 +45,7 @@ import org.apache.flink.runtime.metrics.groups.UnregisteredMetricGroups;
 import org.apache.flink.streaming.runtime.tasks.TestProcessingTimeService;
 import org.apache.flink.util.UserCodeClassLoader;
 
+import org.apache.pulsar.client.api.MessageId;
 import org.apache.pulsar.client.api.transaction.TransactionCoordinatorClient;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
@@ -76,9 +79,17 @@ class PulsarWriterTest extends PulsarTestSuiteBase {
         RoundRobinTopicRouter<String> router = new RoundRobinTopicRouter<>(configuration);
         FixedMessageDelayer<String> delayer = MessageDelayer.never();
         MockInitContext initContext = new MockInitContext();
+        MockSinkUserCallback<String> userCallback = new MockSinkUserCallback<>();
 
         PulsarWriter<String> writer =
-                new PulsarWriter<>(configuration, schema, listener, router, delayer, initContext);
+                new PulsarWriter<>(
+                        configuration,
+                        schema,
+                        listener,
+                        router,
+                        delayer,
+                        initContext,
+                        userCallback);
 
         writer.flush(false);
         writer.prepareCommit();
@@ -102,6 +113,12 @@ class PulsarWriterTest extends PulsarTestSuiteBase {
 
         String consumedMessage = operator().receiveMessage(topic, STRING).getValue();
         assertEquals(consumedMessage, message);
+        assertEquals(1, userCallback.getBeforeSendCalled());
+        assertEquals(1, userCallback.getOnSendSucceededCalled());
+        assertEquals(0, userCallback.getOnSendFailedCalled());
+
+        writer.close();
+        assertEquals(1, userCallback.getCloseCalled());
     }
 
     private SinkConfiguration sinkConfiguration(DeliveryGuarantee deliveryGuarantee) {
@@ -109,6 +126,50 @@ class PulsarWriterTest extends PulsarTestSuiteBase {
         configuration.set(PULSAR_WRITE_SCHEMA_EVOLUTION, true);
 
         return new SinkConfiguration(configuration);
+    }
+
+    private static class MockSinkUserCallback<IN> implements SinkUserCallback<IN> {
+        private int closeCalled;
+        private int beforeSendCalled;
+        private int onSendSucceededCalled;
+        private int onSendFailedCalled;
+
+        public int getCloseCalled() {
+            return closeCalled;
+        }
+
+        public int getBeforeSendCalled() {
+            return beforeSendCalled;
+        }
+
+        public int getOnSendSucceededCalled() {
+            return onSendSucceededCalled;
+        }
+
+        public int getOnSendFailedCalled() {
+            return onSendFailedCalled;
+        }
+
+        @Override
+        public void beforeSend(IN element, PulsarMessage<?> message, String topic) {
+            beforeSendCalled++;
+        }
+
+        @Override
+        public void onSendSucceeded(
+                IN element, PulsarMessage<?> message, String topic, MessageId messageId) {
+            onSendSucceededCalled++;
+        }
+
+        @Override
+        public void onSendFailed(IN element, PulsarMessage<?> message, String topic, Throwable ex) {
+            onSendFailedCalled++;
+        }
+
+        @Override
+        public void close() throws Exception {
+            closeCalled++;
+        }
     }
 
     private static class MockInitContext implements InitContext {
