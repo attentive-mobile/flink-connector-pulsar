@@ -18,6 +18,11 @@
 
 package org.apache.flink.connector.pulsar.sink.writer;
 
+import static org.apache.flink.util.IOUtils.closeAll;
+import static org.apache.flink.util.Preconditions.checkNotNull;
+
+import static java.util.Collections.emptyList;
+
 import org.apache.flink.annotation.Internal;
 import org.apache.flink.api.common.operators.MailboxExecutor;
 import org.apache.flink.api.common.operators.ProcessingTimeService;
@@ -36,10 +41,8 @@ import org.apache.flink.connector.pulsar.sink.writer.router.TopicRouter;
 import org.apache.flink.connector.pulsar.sink.writer.serializer.PulsarSerializationSchema;
 import org.apache.flink.connector.pulsar.sink.writer.topic.TopicMetadataListener;
 import org.apache.flink.connector.pulsar.sink.writer.topic.TopicProducerRegister;
-import org.apache.flink.util.FlinkRuntimeException;
-
 import org.apache.flink.shaded.guava30.com.google.common.base.Strings;
-
+import org.apache.flink.util.FlinkRuntimeException;
 import org.apache.pulsar.client.api.MessageId;
 import org.apache.pulsar.client.api.Schema;
 import org.apache.pulsar.client.api.TypedMessageBuilder;
@@ -51,10 +54,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
-
-import static java.util.Collections.emptyList;
-import static org.apache.flink.util.IOUtils.closeAll;
-import static org.apache.flink.util.Preconditions.checkNotNull;
 
 /**
  * This class is responsible to write records in a Pulsar topic and to handle the different delivery
@@ -178,7 +177,9 @@ public class PulsarWriter<IN> implements PrecommittingSinkWriter<IN, PulsarCommi
                                             "Failed to send data to Pulsar");
                                 } else {
                                     LOG.debug(
-                                            "Sent message to Pulsar {} with message id {}", topic, id);
+                                            "Sent message to Pulsar {} with message id {}",
+                                            topic,
+                                            id);
                                 }
                                 invokeUserCallbackAfterSend(element, message, topic, id, ex);
                             });
