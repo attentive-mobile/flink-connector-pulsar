@@ -38,11 +38,10 @@ import org.apache.flink.connector.pulsar.sink.writer.topic.TopicMetadataListener
 import org.apache.flink.connector.pulsar.sink.writer.topic.TopicProducerRegister;
 import org.apache.flink.util.FlinkRuntimeException;
 
-import org.apache.flink.shaded.guava30.com.google.common.base.Strings;
-
 import org.apache.pulsar.client.api.MessageId;
 import org.apache.pulsar.client.api.Schema;
 import org.apache.pulsar.client.api.TypedMessageBuilder;
+import org.apache.pulsar.shade.com.google.common.base.Strings;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
