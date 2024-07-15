@@ -19,7 +19,6 @@
 package org.apache.flink.connector.pulsar.testutils.runtime.mock;
 
 import org.apache.bookkeeper.common.util.OrderedExecutor;
-import org.apache.bookkeeper.common.util.SafeRunnable;
 import org.apache.bookkeeper.stats.NullStatsLogger;
 import org.apache.pulsar.shade.io.netty.util.concurrent.DefaultThreadFactory;
 
@@ -36,6 +35,7 @@ public class SameThreadOrderedSafeExecutor extends OrderedExecutor {
                 false,
                 100000,
                 -1,
+                false,
                 false);
     }
 
@@ -45,12 +45,12 @@ public class SameThreadOrderedSafeExecutor extends OrderedExecutor {
     }
 
     @Override
-    public void executeOrdered(int orderingKey, SafeRunnable r) {
+    public void executeOrdered(int orderingKey, Runnable r) {
         r.run();
     }
 
     @Override
-    public void executeOrdered(long orderingKey, SafeRunnable r) {
+    public void executeOrdered(long orderingKey, Runnable r) {
         r.run();
     }
 }
