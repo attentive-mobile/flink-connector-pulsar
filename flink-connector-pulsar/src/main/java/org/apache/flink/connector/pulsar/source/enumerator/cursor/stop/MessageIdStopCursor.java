@@ -22,7 +22,6 @@ import org.apache.flink.connector.pulsar.source.enumerator.cursor.StopCursor;
 
 import org.apache.pulsar.client.api.Message;
 import org.apache.pulsar.client.api.MessageId;
-import org.apache.pulsar.client.impl.MessageIdImpl;
 
 import java.util.Objects;
 
