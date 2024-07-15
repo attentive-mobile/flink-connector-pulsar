@@ -31,7 +31,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.apache.pulsar.common.naming.NamespaceName.SYSTEM_NAMESPACE;
-import static org.apache.pulsar.common.naming.TopicName.TRANSACTION_COORDINATOR_ASSIGN;
+import static org.apache.pulsar.common.naming.SystemTopicNames.TRANSACTION_COORDINATOR_ASSIGN;
 
 /** This class is used to create the basic topics for a standalone Pulsar instance. */
 public final class PulsarRuntimeUtils {
