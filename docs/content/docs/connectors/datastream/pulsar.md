@@ -28,12 +28,12 @@ Flink provides an [Apache Pulsar](https://pulsar.apache.org) connector for readi
 
 ## Dependency
 
-You can use the connector with the Pulsar 2.10.0 or higher. It is recommended to always use the latest Pulsar version.
+You can use the connector with the Pulsar 3.0.0 or higher. It is recommended to always use the latest Pulsar version.
 The details on Pulsar compatibility can be found in [PIP-72](https://github.com/apache/pulsar/wiki/PIP-72%3A-Introduce-Pulsar-Interface-Taxonomy%3A-Audience-and-Stability-Classification).
 
-{{< connector_artifact flink-connector-pulsar 4.0.0-SNAPSHOT >}}
+{{< connector_artifact flink-connector-pulsar pulsar >}}
 
-{{< py_download_link "pulsar" >}}
+{{< py_connector_download_link "pulsar" >}}
 
 Flink's streaming connectors are not part of the binary distribution.
 See how to link with them for cluster execution [here]({{< ref "docs/dev/configuration/overview" >}}).
@@ -57,7 +57,6 @@ and deserializes the raw payload of the messages as strings.
 ```java
 PulsarSource<String> source = PulsarSource.builder()
     .setServiceUrl(serviceUrl)
-    .setAdminUrl(adminUrl)
     .setStartCursor(StartCursor.earliest())
     .setTopics("my-topic")
     .setDeserializationSchema(new SimpleStringSchema())
@@ -566,16 +565,6 @@ which is required for creating a `PulsarClient`, as Flink configuration options 
 
 {{< generated/pulsar_client_configuration >}}
 
-#### PulsarAdmin Options
-
-The [admin API](https://pulsar.apache.org/docs/2.11.x/admin-api-overview/) is used for querying topic metadata
-and for discovering the desired topics when the Pulsar connector uses topic-pattern subscription.
-It shares most part of the configuration options with the client API.
-The configuration options listed here are only used in the admin API.
-They are also defined in `PulsarOptions`.
-
-{{< generated/pulsar_admin_configuration >}}
-
 #### Pulsar Consumer Options
 
 In general, Pulsar provides the Reader API and Consumer API for consuming messages in different scenarios.
@@ -986,10 +975,6 @@ The dispatch time should be calculated by the `PulsarSinkContext.processTime()`.
 You can set options for `PulsarClient`, `PulsarAdmin`, Pulsar `Producer` and `PulsarSink`
 by using `setConfig(ConfigOption<T>, T)`, `setConfig(Configuration)` and `setConfig(Properties)`.
 
-#### PulsarClient and PulsarAdmin Options
-
-For details, refer to [PulsarAdmin options](#pulsaradmin-options).
-
 #### Pulsar Producer Options
 
 The Pulsar connector uses the Producer API to send messages. It extracts most parts of
@@ -1275,23 +1260,6 @@ If you have a problem with Pulsar when using Flink, keep in mind that Flink only
 [PulsarAdmin](https://pulsar.apache.org/api/admin/2.10.x/)
 and your problem might be independent of Flink and sometimes can be solved by upgrading Pulsar brokers,
 reconfiguring Pulsar brokers or reconfiguring Pulsar connector in Flink.
-
-## Known Issues
-
-This section describes some known issues about the Pulsar connectors.
-
-### Unstable on Java 11
-
-Pulsar connector has some known issues on Java 11. It is recommended to run Pulsar connector
-on Java 8.
-
-### No TransactionCoordinatorNotFound, but automatic reconnect
-
-Pulsar transactions are still in active development and are not stable. Pulsar 2.9.2
-introduces [a break change](https://github.com/apache/pulsar/pull/13135) in transactions.
-If you use Pulsar 2.9.2 or higher with an older Pulsar client, you might get a `TransactionCoordinatorNotFound` exception.
-
-You can use the latest `pulsar-client-all` release to resolve this issue.
 
 {{< top >}}
 

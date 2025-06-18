@@ -22,12 +22,26 @@ import org.apache.flink.connector.pulsar.source.enumerator.cursor.StopCursor;
 
 import org.apache.pulsar.client.api.Message;
 
-/** A implementation which wouldn't stop forever. */
+/** An implementation which wouldn't stop forever. */
 public class NeverStopCursor implements StopCursor {
     private static final long serialVersionUID = -3113601090292771786L;
 
     @Override
     public StopCondition shouldStop(Message<?> message) {
         return StopCondition.CONTINUE;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+
+        return o != null && getClass() == o.getClass();
+    }
+
+    @Override
+    public int hashCode() {
+        return 31;
     }
 }

@@ -23,8 +23,6 @@ import org.apache.flink.connector.base.DeliveryGuarantee;
 import org.apache.flink.connector.pulsar.common.config.PulsarConfiguration;
 import org.apache.flink.connector.pulsar.source.enumerator.topic.TopicPartition;
 
-import org.apache.flink.shaded.guava30.com.google.common.base.Strings;
-
 import org.apache.pulsar.client.admin.PulsarAdmin;
 import org.apache.pulsar.client.admin.PulsarAdminException;
 import org.apache.pulsar.client.admin.PulsarAdminException.ConflictException;
@@ -42,6 +40,7 @@ import org.apache.pulsar.common.naming.NamespaceName;
 import org.apache.pulsar.common.naming.TopicName;
 import org.apache.pulsar.common.partition.PartitionedTopicMetadata;
 import org.apache.pulsar.common.policies.data.TenantInfo;
+import org.apache.pulsar.shade.com.google.common.base.Strings;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -51,6 +50,8 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -60,7 +61,6 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.stream.Collectors.toList;
 import static org.apache.commons.lang3.RandomStringUtils.randomAlphanumeric;
 import static org.apache.flink.connector.base.DeliveryGuarantee.EXACTLY_ONCE;
-import static org.apache.flink.connector.pulsar.common.config.PulsarOptions.PULSAR_ADMIN_URL;
 import static org.apache.flink.connector.pulsar.common.config.PulsarOptions.PULSAR_ENABLE_TRANSACTION;
 import static org.apache.flink.connector.pulsar.common.config.PulsarOptions.PULSAR_SERVICE_URL;
 import static org.apache.flink.connector.pulsar.common.utils.PulsarTransactionUtils.getTcClient;
@@ -148,7 +148,7 @@ public class PulsarRuntimeOperator implements Closeable {
      */
     public <T> void setupTopic(String topic, Schema<T> schema, Supplier<T> supplier)
             throws Exception {
-        setupTopic(topic, schema, supplier, NUM_RECORDS_PER_PARTITION);
+        setupTopic(topic, schema, supplier, NUM_RECORDS_PER_PARTITION, false);
     }
 
     /**
@@ -161,7 +161,11 @@ public class PulsarRuntimeOperator implements Closeable {
      * @param numRecordsPerSplit The number of records for a partition.
      */
     public <T> void setupTopic(
-            String topic, Schema<T> schema, Supplier<T> supplier, int numRecordsPerSplit)
+            String topic,
+            Schema<T> schema,
+            Supplier<T> supplier,
+            int numRecordsPerSplit,
+            boolean enableBatch)
             throws Exception {
         String topicName = topicName(topic);
         createTopic(topicName, DEFAULT_PARTITIONS);
@@ -172,7 +176,7 @@ public class PulsarRuntimeOperator implements Closeable {
             List<T> messages =
                     Stream.generate(supplier).limit(numRecordsPerSplit).collect(toList());
 
-            sendMessages(partitionName, schema, messages);
+            sendMessages(partitionName, schema, messages, enableBatch);
         }
     }
 
@@ -252,7 +256,7 @@ public class PulsarRuntimeOperator implements Closeable {
      * @return message id.
      */
     public <T> MessageId sendMessage(String topic, Schema<T> schema, T message) throws Exception {
-        List<MessageId> messageIds = sendMessages(topic, schema, singletonList(message));
+        List<MessageId> messageIds = sendMessages(topic, schema, singletonList(message), false);
         checkArgument(messageIds.size() == 1);
 
         return messageIds.get(0);
@@ -270,7 +274,8 @@ public class PulsarRuntimeOperator implements Closeable {
      */
     public <T> MessageId sendMessage(String topic, Schema<T> schema, String key, T message)
             throws Exception {
-        List<MessageId> messageIds = sendMessages(topic, schema, key, singletonList(message));
+        List<MessageId> messageIds =
+                sendMessages(topic, schema, key, singletonList(message), false);
         checkArgument(messageIds.size() == 1);
 
         return messageIds.get(0);
@@ -285,9 +290,10 @@ public class PulsarRuntimeOperator implements Closeable {
      * @param <T> The type of the record.
      * @return message id.
      */
-    public <T> List<MessageId> sendMessages(String topic, Schema<T> schema, Collection<T> messages)
+    public <T> List<MessageId> sendMessages(
+            String topic, Schema<T> schema, Collection<T> messages, boolean enableBatch)
             throws Exception {
-        return sendMessages(topic, schema, null, messages);
+        return sendMessages(topic, schema, null, messages, enableBatch);
     }
 
     /**
@@ -301,16 +307,20 @@ public class PulsarRuntimeOperator implements Closeable {
      * @return message id.
      */
     public <T> List<MessageId> sendMessages(
-            String topic, Schema<T> schema, String key, Collection<T> messages) throws Exception {
-        try (Producer<T> producer = createProducer(topic, schema)) {
+            String topic, Schema<T> schema, String key, Collection<T> messages, boolean enableBatch)
+            throws Exception {
+        try (Producer<T> producer = createProducer(topic, schema, enableBatch)) {
             List<MessageId> messageIds = new ArrayList<>(messages.size());
             for (T message : messages) {
                 TypedMessageBuilder<T> builder = producer.newMessage().value(message);
                 if (!Strings.isNullOrEmpty(key)) {
                     builder.key(key);
                 }
-                MessageId messageId = builder.send();
-                messageIds.add(messageId);
+                final CompletableFuture<MessageId> messageIdCompletableFuture = builder.sendAsync();
+                messageIdCompletableFuture.whenComplete(
+                        (messageId, ignore) -> {
+                            messageIds.add(messageId);
+                        });
             }
             producer.flush();
             return messageIds;
@@ -427,7 +437,6 @@ public class PulsarRuntimeOperator implements Closeable {
     public Configuration config() {
         Configuration configuration = new Configuration();
         configuration.set(PULSAR_SERVICE_URL, serviceUrl());
-        configuration.set(PULSAR_ADMIN_URL, adminUrl());
         return configuration;
     }
 
@@ -482,16 +491,19 @@ public class PulsarRuntimeOperator implements Closeable {
         }
     }
 
-    private <T> Producer<T> createProducer(String topic, Schema<T> schema) throws Exception {
+    public <T> Producer<T> createProducer(String topic, Schema<T> schema, boolean enableBatch)
+            throws Exception {
         return client().newProducer(schema)
                 .topic(topic)
-                .enableBatching(false)
+                .enableBatching(enableBatch)
                 .enableMultiSchema(true)
                 .accessMode(Shared)
+                .batchingMaxPublishDelay(
+                        10, TimeUnit.SECONDS) // Give enough time to assemble the batch
                 .create();
     }
 
-    private <T> Consumer<T> createConsumer(String topic, Schema<T> schema) throws Exception {
+    public <T> Consumer<T> createConsumer(String topic, Schema<T> schema) throws Exception {
         // Create the earliest subscription if it's not existed.
         List<String> subscriptions = admin().topics().getSubscriptions(topic);
         if (!subscriptions.contains(SUBSCRIPTION_NAME)) {

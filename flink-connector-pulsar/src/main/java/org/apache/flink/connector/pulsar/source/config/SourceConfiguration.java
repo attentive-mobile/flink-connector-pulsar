@@ -32,6 +32,7 @@ import org.apache.pulsar.client.api.SubscriptionType;
 
 import java.time.Duration;
 import java.util.Objects;
+import java.util.function.Function;
 
 import static org.apache.flink.connector.base.source.reader.SourceReaderOptions.ELEMENT_QUEUE_CAPACITY;
 import static org.apache.flink.connector.pulsar.common.config.PulsarOptions.PULSAR_STATS_INTERVAL_SECONDS;
@@ -72,12 +73,12 @@ public class SourceConfiguration extends PulsarConfiguration {
     public SourceConfiguration(Configuration configuration) {
         super(configuration);
 
-        this.messageQueueCapacity = getInteger(ELEMENT_QUEUE_CAPACITY);
+        this.messageQueueCapacity = get(ELEMENT_QUEUE_CAPACITY);
         this.partitionDiscoveryIntervalMs = get(PULSAR_PARTITION_DISCOVERY_INTERVAL_MS);
         this.enableAutoAcknowledgeMessage = get(PULSAR_ENABLE_AUTO_ACKNOWLEDGE_MESSAGE);
         this.autoCommitCursorInterval = get(PULSAR_AUTO_COMMIT_CURSOR_INTERVAL);
         this.fetchOneMessageTime = getOptional(PULSAR_FETCH_ONE_MESSAGE_TIME).orElse(0);
-        this.maxFetchTime = get(PULSAR_MAX_FETCH_TIME, Duration::ofMillis);
+        this.maxFetchTime = get(PULSAR_MAX_FETCH_TIME, (Function<Long, Duration>) Duration::ofMillis);
         this.maxFetchRecords = get(PULSAR_MAX_FETCH_RECORDS);
         this.verifyInitialOffsets = get(PULSAR_VERIFY_INITIAL_OFFSETS);
         this.subscriptionName = get(PULSAR_SUBSCRIPTION_NAME);

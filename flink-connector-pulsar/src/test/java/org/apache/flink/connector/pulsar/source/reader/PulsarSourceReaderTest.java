@@ -69,7 +69,7 @@ import static org.apache.flink.connector.pulsar.testutils.PulsarTestCommonUtils.
 import static org.apache.flink.connector.pulsar.testutils.PulsarTestCommonUtils.createPartitionSplits;
 import static org.apache.flink.connector.pulsar.testutils.runtime.PulsarRuntimeOperator.DEFAULT_PARTITIONS;
 import static org.apache.flink.connector.pulsar.testutils.runtime.PulsarRuntimeOperator.NUM_RECORDS_PER_PARTITION;
-import static org.apache.flink.shaded.guava30.com.google.common.util.concurrent.Uninterruptibles.sleepUninterruptibly;
+import static org.apache.pulsar.shade.com.google.common.util.concurrent.Uninterruptibles.sleepUninterruptibly;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.fail;
@@ -247,7 +247,7 @@ class PulsarSourceReaderTest extends PulsarTestSuiteBase {
         SourceConfiguration sourceConfiguration = new SourceConfiguration(configuration);
 
         return PulsarSourceReader.create(
-                sourceConfiguration, deserializationSchema, PulsarCrypto.disabled(), context);
+                sourceConfiguration, deserializationSchema, PulsarCrypto.disabled(), null, context);
     }
 
     private void setupSourceReader(

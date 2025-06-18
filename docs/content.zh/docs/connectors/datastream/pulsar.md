@@ -28,11 +28,11 @@ Flink 当前提供 [Apache Pulsar](https://pulsar.apache.org) Source 和 Sink �
 
 ## 添加依赖
 
-当前支持 Pulsar 2.10.0 及其之后的版本，建议在总是将 Pulsar 升级至最新版。如果想要了解更多关于 Pulsar API 兼容性设计，可以阅读文档 [PIP-72](https://github.com/apache/pulsar/wiki/PIP-72%3A-Introduce-Pulsar-Interface-Taxonomy%3A-Audience-and-Stability-Classification)。
+当前支持 Pulsar 3.0.0 及其之后的版本，建议总是将 Pulsar 升级至最新版。如果想要了解更多对于 Pulsar API 兼容性设计，可以阅读文档 [PIP-72](https://github.com/apache/pulsar/wiki/PIP-72%3A-Introduce-Pulsar-Interface-Taxonomy%3A-Audience-and-Stability-Classification)。
 
-{{< connector_artifact flink-connector-pulsar 4.0.0-SNAPSHOT >}}
+{{< connector_artifact flink-connector-pulsar pulsar >}}
 
-{{< py_download_link "pulsar" >}}
+{{< py_connector_download_link "pulsar" >}}
 
 Flink 的流连接器并不会放到发行文件里面一同发布，阅读[此文档]({{< ref "docs/dev/configuration/overview" >}})，了解如何将连接器添加到集群实例内。
 
@@ -52,7 +52,6 @@ Pulsar Source 提供了 builder 类来构造 `PulsarSource` 实例。下面的�
 ```java
 PulsarSource<String> source = PulsarSource.builder()
     .setServiceUrl(serviceUrl)
-    .setAdminUrl(adminUrl)
     .setStartCursor(StartCursor.earliest())
     .setTopics("my-topic")
     .setDeserializationSchema(new SimpleStringSchema())
@@ -485,12 +484,6 @@ Pulsar Source 使用 [Java 客户端](https://pulsar.apache.org/docs/2.11.x/clie
 
 {{< generated/pulsar_client_configuration >}}
 
-#### Pulsar 管理 API 配置项
-
-[管理 API](https://pulsar.apache.org/docs/2.11.x/admin-api-overview/) 用于查询 Topic 的元数据和用正则订阅的时候的 Topic 查找，它与 Java 客户端共享大部分配置。下面列举的配置只供管理 API 使用，`PulsarOptions` 包含了这些配置 。
-
-{{< generated/pulsar_admin_configuration >}}
-
 #### Pulsar 消费者 API 配置项
 
 Pulsar 提供了消费者 API 和读者 API 两套 API 来进行数据消费，它们可用于不同的业务场景。Flink 上的 Pulsar Source 使用消费者 API 进行消费，它的配置定义于 Pulsar 的 `ConsumerConfigurationData` 内。Pulsar Source 将其中大部分的可供用户定义的配置定义于 `PulsarSourceOptions` 内。
@@ -830,13 +823,6 @@ public interface TopicRouter<IN> extends Serializable {
 
 可以在 builder 类里通过 `setConfig(ConfigOption<T>, T)` 和 `setConfig(Configuration)` 方法给定下述的全部配置。
 
-#### PulsarClient 和 PulsarAdmin 配置项
-
-Pulsar Sink 和 Pulsar Source 公用的配置选项可参考
-
-- [Pulsar Java 客户端配置项](#pulsar-java-客户端配置项)
-- [Pulsar 管理 API 配置项](#pulsar-管理-api-配置项)
-
 #### Pulsar 生产者 API 配置项
 
 Pulsar Sink 使用生产者 API 来发送消息。Pulsar 的 `ProducerConfigurationData` 中大部分的配置项被映射为 `PulsarSinkOptions` 里的选项。
@@ -1087,22 +1073,6 @@ PulsarSink<String> sink = PulsarSink.builder()
 使用 Flink 和 Pulsar 交互时如果遇到问题，由于 Flink 内部实现只是基于 Pulsar 的 [Java 客户端](https://pulsar.apache.org/api/client/2.10.x/)和[管理 API](https://pulsar.apache.org/api/admin/2.10.x/) 而开发的。
 
 用户遇到的问题可能与 Flink 无关，请先升级 Pulsar 的版本、Pulsar 客户端的版本，或者修改 Pulsar 的配置、Pulsar 连接器的配置来尝试解决问题。
-
-## 已知问题
-
-本节介绍有关 Pulsar 连接器的一些已知问题。
-
-### 在 Java 11 上使用不稳定
-
-Pulsar connector 在 Java 11 中有一些尚未修复的问题。我们当前推荐在 Java 8 环境中运行Pulsar connector.
-
-### 不自动重连，而是抛出TransactionCoordinatorNotFound异常
-
-Pulsar 事务机制仍在积极发展中，当前版本并不稳定。 Pulsar 2.9.2
-引入了这个问题 [a break change](https://github.com/apache/pulsar/pull/13135)。
-如果您使用 Pulsar 2.9.2或更高版本与较旧的 Pulsar 客户端一起使用，您可能会收到一个“TransactionCoordinatorNotFound”异常。
-
-您可以使用最新的`pulsar-client-all`分支来解决这个问题。
 
 {{< top >}}
 

@@ -28,6 +28,8 @@ import org.apache.flink.configuration.Configuration;
 import org.apache.flink.connector.pulsar.common.config.PulsarConfigBuilder;
 import org.apache.flink.connector.pulsar.common.config.PulsarOptions;
 import org.apache.flink.connector.pulsar.common.crypto.PulsarCrypto;
+import org.apache.flink.connector.pulsar.source.callback.SourceUserCallback;
+import org.apache.flink.connector.pulsar.source.callback.SourceUserCallbackFactory;
 import org.apache.flink.connector.pulsar.source.config.SourceConfiguration;
 import org.apache.flink.connector.pulsar.source.enumerator.cursor.StartCursor;
 import org.apache.flink.connector.pulsar.source.enumerator.cursor.StopCursor;
@@ -59,7 +61,6 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.regex.Pattern;
 
-import static org.apache.flink.connector.pulsar.common.config.PulsarOptions.PULSAR_ADMIN_URL;
 import static org.apache.flink.connector.pulsar.common.config.PulsarOptions.PULSAR_AUTH_PARAMS;
 import static org.apache.flink.connector.pulsar.common.config.PulsarOptions.PULSAR_AUTH_PARAM_MAP;
 import static org.apache.flink.connector.pulsar.common.config.PulsarOptions.PULSAR_AUTH_PLUGIN_CLASS_NAME;
@@ -86,15 +87,14 @@ import static org.apache.flink.util.Preconditions.checkState;
  * PulsarSource<String> source = PulsarSource
  *     .builder()
  *     .setServiceUrl(PULSAR_BROKER_URL)
- *     .setAdminUrl(PULSAR_BROKER_HTTP_URL)
  *     .setSubscriptionName("flink-source-1")
  *     .setTopics(Arrays.asList(TOPIC1, TOPIC2))
  *     .setDeserializationSchema(new SimpleStringSchema())
  *     .build();
  * }</pre>
  *
- * <p>The service url, admin url, subscription name, topics to consume, and the record deserializer
- * are required fields that must be set.
+ * <p>The service url, subscription name, topics to consume, and the record deserializer are
+ * required fields that must be set.
  *
  * <p>To specify the starting position of PulsarSource, one can call {@link
  * #setStartCursor(StartCursor)}.
@@ -115,7 +115,6 @@ import static org.apache.flink.util.Preconditions.checkState;
  * PulsarSource<String> source = PulsarSource
  *     .builder()
  *     .setServiceUrl(PULSAR_BROKER_URL)
- *     .setAdminUrl(PULSAR_BROKER_HTTP_URL)
  *     .setSubscriptionName("flink-source-1")
  *     .setTopics(Arrays.asList(TOPIC1, TOPIC2))
  *     .setDeserializationSchema(new SimpleStringSchema())
@@ -138,6 +137,7 @@ public final class PulsarSourceBuilder<OUT> {
     private Boundedness boundedness;
     private PulsarDeserializationSchema<OUT> deserializationSchema;
     private PulsarCrypto pulsarCrypto;
+    private SourceUserCallbackFactory<OUT> userCallbackFactory;
 
     // private builder constructor.
     PulsarSourceBuilder() {
@@ -152,9 +152,11 @@ public final class PulsarSourceBuilder<OUT> {
      *
      * @param adminUrl the url for the PulsarAdmin.
      * @return this PulsarSourceBuilder.
+     * @deprecated this method will return builder directly
      */
+    @Deprecated
     public PulsarSourceBuilder<OUT> setAdminUrl(String adminUrl) {
-        return setConfig(PULSAR_ADMIN_URL, adminUrl);
+        return this;
     }
 
     /**
@@ -537,6 +539,18 @@ public final class PulsarSourceBuilder<OUT> {
     }
 
     /**
+     * Set a factory for the {@link SourceUserCallback}.
+     *
+     * @param callbackFactory the factory.
+     * @return this PulsarSourceBuilder.
+     */
+    public PulsarSourceBuilder<OUT> setUserCallbackFactory(
+            SourceUserCallbackFactory<OUT> callbackFactory) {
+        this.userCallbackFactory = callbackFactory;
+        return this;
+    }
+
+    /**
      * Build the {@link PulsarSource}.
      *
      * @return a PulsarSource with the settings made for this builder.
@@ -612,7 +626,8 @@ public final class PulsarSourceBuilder<OUT> {
                 stopCursor,
                 boundedness,
                 deserializationSchema,
-                pulsarCrypto);
+                pulsarCrypto,
+                userCallbackFactory);
     }
 
     // ------------- private helpers  --------------

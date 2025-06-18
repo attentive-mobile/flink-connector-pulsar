@@ -26,7 +26,10 @@ import org.apache.flink.connector.base.DeliveryGuarantee;
 import org.apache.flink.connector.pulsar.common.config.PulsarConfigBuilder;
 import org.apache.flink.connector.pulsar.common.config.PulsarOptions;
 import org.apache.flink.connector.pulsar.common.crypto.PulsarCrypto;
+import org.apache.flink.connector.pulsar.sink.callback.SinkUserCallback;
+import org.apache.flink.connector.pulsar.sink.callback.SinkUserCallbackFactory;
 import org.apache.flink.connector.pulsar.sink.config.SinkConfiguration;
+import org.apache.flink.connector.pulsar.sink.writer.PulsarWriter;
 import org.apache.flink.connector.pulsar.sink.writer.delayer.MessageDelayer;
 import org.apache.flink.connector.pulsar.sink.writer.router.TopicRouter;
 import org.apache.flink.connector.pulsar.sink.writer.router.TopicRoutingMode;
@@ -46,7 +49,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
-import static org.apache.flink.connector.pulsar.common.config.PulsarOptions.PULSAR_ADMIN_URL;
 import static org.apache.flink.connector.pulsar.common.config.PulsarOptions.PULSAR_AUTH_PARAMS;
 import static org.apache.flink.connector.pulsar.common.config.PulsarOptions.PULSAR_AUTH_PARAM_MAP;
 import static org.apache.flink.connector.pulsar.common.config.PulsarOptions.PULSAR_AUTH_PLUGIN_CLASS_NAME;
@@ -75,15 +77,14 @@ import static org.apache.flink.util.Preconditions.checkState;
  * <pre>{@code
  * PulsarSink<String> sink = PulsarSink.builder()
  *     .setServiceUrl(operator().serviceUrl())
- *     .setAdminUrl(operator().adminUrl())
  *     .setTopics(topic)
  *     .setSerializationSchema(Schema.STRING)
  *     .build();
  * }</pre>
  *
- * <p>The service url, admin url, and the record serializer are required fields that must be set. If
- * you don't set the topics, make sure you have provided a custom {@link TopicRouter}. Otherwise,
- * you must provide the topics to produce.
+ * <p>The service url and the record serializer are required fields that must be set. If you don't
+ * set the topics, make sure you have provided a custom {@link TopicRouter}. Otherwise, you must
+ * provide the topics to produce.
  *
  * <p>To specify the delivery guarantees of PulsarSink, one can call {@link
  * #setDeliveryGuarantee(DeliveryGuarantee)}. The default value of the delivery guarantee is {@link
@@ -93,7 +94,6 @@ import static org.apache.flink.util.Preconditions.checkState;
  * <pre>{@code
  * PulsarSink<String> sink = PulsarSink.builder()
  *     .setServiceUrl(operator().serviceUrl())
- *     .setAdminUrl(operator().adminUrl())
  *     .setTopics(topic)
  *     .setSerializationSchema(Schema.STRING)
  *     .setDeliveryGuarantee(deliveryGuarantee)
@@ -115,6 +115,7 @@ public class PulsarSinkBuilder<IN> {
     private TopicRouter<IN> topicRouter;
     private MessageDelayer<IN> messageDelayer;
     private PulsarCrypto pulsarCrypto;
+    private SinkUserCallbackFactory<IN> userCallbackFactory;
 
     // private builder constructor.
     PulsarSinkBuilder() {
@@ -126,9 +127,11 @@ public class PulsarSinkBuilder<IN> {
      *
      * @param adminUrl The url for the PulsarAdmin.
      * @return this PulsarSinkBuilder.
+     * @deprecated this method will return builder directly
      */
+    @Deprecated
     public PulsarSinkBuilder<IN> setAdminUrl(String adminUrl) {
-        return setConfig(PULSAR_ADMIN_URL, adminUrl);
+        return this;
     }
 
     /**
@@ -389,6 +392,19 @@ public class PulsarSinkBuilder<IN> {
     }
 
     /**
+     * Set a factory for the {@link SinkUserCallback}. A callback is instantiated in each {@link PulsarWriter}
+     * and disposed of when the app shuts down.
+     *
+     * @param userCallbackFactory the factory.
+     * @return this PuslarSourceBuilder
+     */
+    public PulsarSinkBuilder<IN> setUserCallbackFactory(
+            SinkUserCallbackFactory<IN> userCallbackFactory) {
+        this.userCallbackFactory = userCallbackFactory;
+        return this;
+    }
+
+    /**
      * Build the {@link PulsarSink}.
      *
      * @return a PulsarSink with the settings made for this builder.
@@ -484,7 +500,8 @@ public class PulsarSinkBuilder<IN> {
                 topicRoutingMode,
                 topicRouter,
                 messageDelayer,
-                pulsarCrypto);
+                pulsarCrypto,
+                userCallbackFactory);
     }
 
     // ------------- private helpers  --------------

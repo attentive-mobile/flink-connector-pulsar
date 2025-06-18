@@ -16,18 +16,46 @@
 # limitations under the License.
 ################################################################################
 
-name: Nightly
+# We need to specify repo related information here since Apache INFRA doesn't differentiate
+# between several workflows with the same names while preparing a report for GHA usage
+# https://infra-reports.apache.org/#ghactions
+name: Nightly Flink Connector Pulsar
 on:
   schedule:
     - cron: "0 0 * * *"
+  workflow_dispatch:
+
 jobs:
   compile_and_test:
     if: github.repository_owner == 'apache'
     strategy:
+      fail-fast: false
       matrix:
-        flink: [1.17-SNAPSHOT]
+        jdk: [ 8, 11 ]
+        flink_branches: [{
+          flink: 1.17-SNAPSHOT,
+          branch: main
+        }, {
+          flink: 1.18-SNAPSHOT,
+          branch: main
+        }, {
+          flink: 1.16.2,
+          branch: v3.0
+        }, {
+          flink: 1.17.1,
+          branch: v4.0
+        }]
+        include:
+          - jdk: 17
+            flink_branches: {
+              flink: 1.18-SNAPSHOT,
+              branch: main
+            }
     uses: apache/flink-connector-shared-utils/.github/workflows/ci.yml@ci_utils
     with:
-      flink_version: ${{ matrix.flink }}
-      timeout_global: 80
-      timeout_test: 60
+      jdk_version: ${{ matrix.jdk }}
+      flink_version: ${{ matrix.flink_branches.flink }}
+      connector_branch: ${{ matrix.flink_branches.branch }}
+      run_dependency_convergence: false
+      timeout_global: 120
+      timeout_test: 80
